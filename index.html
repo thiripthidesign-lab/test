@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poster Personalizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        input[type="file"], input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="file"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .preview-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .preview-btn:hover {
+            background: #45a049;
+        }
+        
+        .download-btn {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .download-btn:hover {
+            background: #1976D2;
+        }
+        
+        .preview-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Poster Personalizer</h1>
+        
+        <div class="form-group">
+            <label for="imageInput">Upload Your Photo:</label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label for="nameInput">Enter Your Name:</label>
+            <input type="text" id="nameInput" placeholder="Your name here">
+        </div>
+        
+        <div class="button-group">
+            <button class="preview-btn" onclick="generatePreview()">Preview</button>
+            <button class="download-btn" onclick="downloadPoster()">Download</button>
+        </div>
+        
+        <div class="preview-container">
+            <canvas id="canvas" width="1080" height="1080" style="display: none;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let templateImage = null;
+        let userImage = null;
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        
+        // Load template image
+        const template = new Image();
+        template.crossOrigin = 'anonymous';
+        template.onload = function() {
+            templateImage = template;
+        };
+        template.src = 'template.png';
+        
+        // Handle image upload
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Handle EXIF orientation
+                        EXIF.getData(img, function() {
+                            const orientation = EXIF.getTag(this, "Orientation") || 1;
+                            userImage = correctImageOrientation(img, orientation);
+                        });
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Simple EXIF orientation handling
+        const EXIF = {
+            getData: function(img, callback) {
+                callback.call(img);
+            },
+            getTag: function(img, tag) {
+                return 1; // Default orientation
+            }
+        };
+        
+        function correctImageOrientation(img, orientation) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            ctx.drawImage(img, 0, 0);
+            return canvas;
+        }
+        
+        function drawClippedImage(ctx, img, x, y, width, height) {
+            ctx.save();
+            
+            // Create clipping path with two rounded and two sharp corners
+            ctx.beginPath();
+            const radius = 50;
+            
+            // Start from top-left (sharp corner)
+            ctx.moveTo(x, y);
+            
+            // Top edge to top-right (rounded corner)
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            
+            // Right edge to bottom-right (sharp corner)
+            ctx.lineTo(x + width, y + height);
+            
+            // Bottom edge to bottom-left (rounded corner)
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            
+            // Left edge back to start
+            ctx.lineTo(x, y);
+            
+            ctx.clip();
+            
+            // Calculate cover behavior scaling
+            const imgAspect = img.width / img.height;
+            const rectAspect = width / height;
+            
+            let drawWidth, drawHeight, drawX, drawY;
+            
+            if (imgAspect > rectAspect) {
+                // Image is wider, fit to height
+                drawHeight = height;
+                drawWidth = height * imgAspect;
+                drawX = x - (drawWidth - width) / 2;
+                drawY = y;
+            } else {
+                // Image is taller, fit to width
+                drawWidth = width;
+                drawHeight = width / imgAspect;
+                drawX = x;
+                drawY = y - (drawHeight - height) / 2;
+            }
+            
+            ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+            
+            ctx.restore();
+            
+            // Draw stroke around the clipped shape
+            ctx.save();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#0C0C0C';
+            
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y);
+            
+            ctx.stroke();
+            ctx.restore();
+        }
+        
+        function drawText(ctx, text, centerX, y, maxWidth) {
+            ctx.save();
+            ctx.font = 'bold 48px Montserrat, sans-serif';
+            ctx.fillStyle = '#000066';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Auto-shrink text to fit maxWidth
+            let fontSize = 48;
+            ctx.font = `bold ${fontSize}px Montserrat, sans-serif`;
+            let textWidth = ctx.measureText(text).width;
+            
+            while (textWidth > maxWidth && fontSize > 10) {
+                fontSize--;
+                ctx.font = `bold ${fontSize}px Montserrat, sans-serif`;
+                textWidth = ctx.measureText(text).width;
+            }
+            
+            // Draw text with white stroke for legibility
+            ctx.strokeText(text, centerX, y);
+            ctx.fillText(text, centerX, y);
+            
+            ctx.restore();
+        }
+        
+        function generatePreview() {
+            const name = document.getElementById('nameInput').value.trim();
+            
+            if (!userImage || !name) {
+                alert('Both image and name are required!');
+                return;
+            }
+            
+            if (!templateImage) {
+                alert('Template image is still loading. Please wait a moment.');
+                return;
+            }
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, 1080, 1080);
+            
+            // Draw template
+            ctx.drawImage(templateImage, 0, 0, 1080, 1080);
+            
+            // Draw clipped user image at specified coordinates
+            drawClippedImage(ctx, userImage, 620, 250, 393.7106, 393.7106);
+            
+            // Draw name text centered at y=860
+            drawText(ctx, name, 817, 690, 450);
+            
+            // Show canvas
+            canvas.style.display = 'block';
+        }
+        
+        function downloadPoster() {
+            const name = document.getElementById('nameInput').value.trim();
+            
+            if (!userImage || !name) {
+                alert('Both image and name are required!');
+                return;
+            }
+            
+            // Generate preview first to ensure canvas is ready
+            generatePreview();
+            
+            // Create download link
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `poster-${name}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+    </script>
+</body>
+</html>
